@@ -1,0 +1,602 @@
+{
+	"info": {
+		"_postman_id": "fal-lab-api-collection",
+		"name": "Fal.ai Gateway API",
+		"description": "Complete API collection for Fal.ai Gateway - Production-grade API Gateway for Fal.ai models with queue management",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "fal-lab"
+	},
+	"item": [
+		{
+			"name": "Root",
+			"item": [
+				{
+					"name": "Get API Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								""
+							]
+						},
+						"description": "Get basic API information and status"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Health",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"health"
+							]
+						},
+						"description": "Comprehensive health check endpoint that verifies Redis connection, queue metrics, and Fal.ai API reachability"
+					},
+					"response": []
+				},
+				{
+					"name": "Readiness Probe",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/health/ready",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"health",
+								"ready"
+							]
+						},
+						"description": "Kubernetes readiness probe - checks if the service is ready to accept traffic"
+					},
+					"response": []
+				},
+				{
+					"name": "Liveness Probe",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/health/live",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"health",
+								"live"
+							]
+						},
+						"description": "Kubernetes liveness probe - checks if the service is alive"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Metrics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/metrics",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"metrics"
+							]
+						},
+						"description": "Get detailed queue and system metrics including queue length, active tasks, and system configuration"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Models",
+			"item": [
+				{
+					"name": "List All Models",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/models?category=&limit=50&offset=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"models"
+							],
+							"query": [
+								{
+									"key": "category",
+									"value": "",
+									"description": "Filter by category (text-to-image, image-to-image, text-to-video, etc.)",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "50",
+									"description": "Maximum number of results (1-100)"
+								},
+								{
+									"key": "offset",
+									"value": "0",
+									"description": "Offset for pagination"
+								}
+							]
+						},
+						"description": "Get a list of all available Fal.ai models with optional filtering by category and pagination"
+					},
+					"response": []
+				},
+				{
+					"name": "List Models by Category",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/models?category=text-to-image&limit=50&offset=0",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"models"
+							],
+							"query": [
+								{
+									"key": "category",
+									"value": "text-to-image",
+									"description": "Filter by category"
+								},
+								{
+									"key": "limit",
+									"value": "50",
+									"description": "Maximum number of results"
+								},
+								{
+									"key": "offset",
+									"value": "0",
+									"description": "Offset for pagination"
+								}
+							]
+						},
+						"description": "List models filtered by category (text-to-image, image-to-image, text-to-video, text-generation, audio-generation, other)"
+					},
+					"response": []
+				},
+				{
+					"name": "Search Models",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/models/search?q=flux&category=&limit=20",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"models",
+								"search"
+							],
+							"query": [
+								{
+									"key": "q",
+									"value": "flux",
+									"description": "Search query (required)"
+								},
+								{
+									"key": "category",
+									"value": "",
+									"description": "Optional category filter",
+									"disabled": true
+								},
+								{
+									"key": "limit",
+									"value": "20",
+									"description": "Maximum number of results (1-100)"
+								}
+							]
+						},
+						"description": "Search for models by name, description, or ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Model Details",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/models/fal-ai/flux/dev",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"models",
+								"fal-ai/flux/dev"
+							],
+							"variable": [
+								{
+									"key": "model_id",
+									"value": "fal-ai/flux/dev",
+									"description": "Fal.ai model identifier"
+								}
+							]
+						},
+						"description": "Get detailed information about a specific model including parameters, pricing, and description"
+					},
+					"response": []
+				},
+				{
+					"name": "List Categories",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/models/categories/list",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"models",
+								"categories",
+								"list"
+							]
+						},
+						"description": "Get all available model categories"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Generation",
+			"item": [
+				{
+					"name": "Submit Generation Request",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"// Save request_id for status check",
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    pm.environment.set(\"request_id\", response.request_id);",
+									"    console.log(\"Request ID saved:\", response.request_id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"model_id\": \"fal-ai/flux/dev\",\n    \"prompt\": \"A serene mountain landscape at sunset with vibrant colors\",\n    \"parameters\": {\n        \"image_size\": \"landscape_4_3\",\n        \"num_images\": 1\n    }\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/generate",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"generate"
+							]
+						},
+						"description": "Submit a new content generation request. This endpoint queues the request and returns immediately with a request_id. Use the request_id to check status via /status/{request_id}\n\n**Required fields:**\n- `model_id`: Fal.ai model identifier (e.g., \"fal-ai/flux/dev\")\n- `prompt`: Generation prompt (1-2000 characters)\n\n**Optional fields:**\n- `parameters`: Model-specific parameters (varies by model)"
+					},
+					"response": [
+						{
+							"name": "Success - Request Queued",
+							"originalRequest": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"model_id\": \"fal-ai/flux/dev\",\n    \"prompt\": \"A serene mountain landscape at sunset\",\n    \"parameters\": {}\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/generate",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"generate"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								},
+								{
+									"key": "X-Process-Time",
+									"value": "0.012"
+								},
+								{
+									"key": "X-RateLimit-Limit",
+									"value": "60"
+								},
+								{
+									"key": "X-RateLimit-Remaining",
+									"value": "59"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"request_id\": \"req_abc123def456\",\n    \"status\": \"queued\",\n    \"model_id\": \"fal-ai/flux/dev\",\n    \"created_at\": \"2024-12-13T10:30:00Z\",\n    \"completed_at\": null,\n    \"result\": null,\n    \"error\": null,\n    \"queue_position\": 1\n}"
+						}
+					]
+				},
+				{
+					"name": "Check Generation Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/status/{{request_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"status",
+								"{{request_id}}"
+							],
+							"description": "Use the request_id from the /generate endpoint to check the status of your generation request"
+						},
+						"description": "Get the current status and result of a generation request. Status can be: queued, processing, completed, or failed"
+					},
+					"response": [
+						{
+							"name": "Queued",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/status/req_abc123",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"status",
+										"req_abc123"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"request_id\": \"req_abc123\",\n    \"status\": \"queued\",\n    \"model_id\": \"fal-ai/flux/dev\",\n    \"created_at\": \"2024-12-13T10:30:00Z\",\n    \"completed_at\": null,\n    \"result\": null,\n    \"error\": null,\n    \"queue_position\": 2\n}"
+						},
+						{
+							"name": "Processing",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/status/req_abc123",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"status",
+										"req_abc123"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"request_id\": \"req_abc123\",\n    \"status\": \"processing\",\n    \"model_id\": \"fal-ai/flux/dev\",\n    \"created_at\": \"2024-12-13T10:30:00Z\",\n    \"completed_at\": null,\n    \"result\": null,\n    \"error\": null,\n    \"queue_position\": null\n}"
+						},
+						{
+							"name": "Completed",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/status/req_abc123",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"status",
+										"req_abc123"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"request_id\": \"req_abc123\",\n    \"status\": \"completed\",\n    \"model_id\": \"fal-ai/flux/dev\",\n    \"created_at\": \"2024-12-13T10:30:00Z\",\n    \"completed_at\": \"2024-12-13T10:30:15Z\",\n    \"result\": {\n        \"images\": [\n            {\n                \"url\": \"https://fal.media/files/abc.jpg\",\n                \"content_type\": \"image/jpeg\",\n                \"width\": 1024,\n                \"height\": 768\n            }\n        ]\n    },\n    \"error\": null,\n    \"queue_position\": null\n}"
+						},
+						{
+							"name": "Failed",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/status/req_abc123",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"status",
+										"req_abc123"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"request_id\": \"req_abc123\",\n    \"status\": \"failed\",\n    \"model_id\": \"fal-ai/flux/dev\",\n    \"created_at\": \"2024-12-13T10:30:00Z\",\n    \"completed_at\": \"2024-12-13T10:30:10Z\",\n    \"result\": null,\n    \"error\": \"Generation failed: Invalid prompt\",\n    \"queue_position\": null\n}"
+						},
+						{
+							"name": "Not Found",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/status/req_invalid",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"status",
+										"req_invalid"
+									]
+								}
+							},
+							"status": "Not Found",
+							"code": 404,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n    \"error\": \"HTTPException\",\n    \"message\": \"Request req_invalid not found\",\n    \"details\": null\n}"
+						}
+					]
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		}
+	]
+}
+
