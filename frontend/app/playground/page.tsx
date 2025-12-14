@@ -5,6 +5,7 @@ import { ChatSidebar } from "@/components/playground/chat-sidebar"
 import { PlaygroundHeader } from "@/components/playground/playground-header"
 import { MessageList, type Message } from "@/components/playground/message-list"
 import { PromptInput } from "@/components/playground/prompt-input"
+import { submitGeneration, pollGenerationUntilComplete } from "@/lib/api"
 
 interface Chat {
   id: string
@@ -51,7 +52,7 @@ export default function PlaygroundPage() {
 
   const handleSubmit = useCallback(
     async (prompt: string, attachments: File[]) => {
-      if (!activeChat) return
+      if (!activeChat || !selectedModel) return
 
       const userMessage: Message = {
         id: Date.now().toString(),
@@ -74,23 +75,79 @@ export default function PlaygroundPage() {
 
       setIsLoading(true)
 
-      // Simulate AI response
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      try {
+        // Call the backend API to generate
+        const { request_id, status } = await submitGeneration({
+          model_id: selectedModel,
+          prompt,
+          parameters: {},
+        })
 
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: `Here's your generated image based on: "${prompt}"`,
-        image: `/placeholder.svg?height=512&width=512&query=${encodeURIComponent(prompt)}`,
-        timestamp: new Date(),
-        model: selectedModel,
+        // Add a loading message while waiting for generation
+        const loadingMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: "Generating your image...",
+          timestamp: new Date(),
+          model: selectedModel,
+          requestId: request_id,
+          status: status || "submitted",
+        }
+
+        setChats((prev) =>
+          prev.map((chat) =>
+            chat.id === activeChat ? { ...chat, messages: [...chat.messages, loadingMessage] } : chat,
+          ),
+        )
+
+        // Poll for completion
+        const result = await pollGenerationUntilComplete(request_id)
+
+        // Replace loading message with result
+        setChats((prev) =>
+          prev.map((chat) => {
+            if (chat.id === activeChat) {
+              return {
+                ...chat,
+                messages: chat.messages.map((msg) =>
+                  msg.id === loadingMessage.id
+                    ? {
+                        ...msg,
+                        content: "Image generated successfully!",
+                        image:
+                          result.result?.images?.[0]?.url ||
+                          result.result?.output?.[0] ||
+                          undefined,
+                        status: result.status,
+                        requestId: result.request_id,
+                      }
+                    : msg,
+                ),
+              }
+            }
+            return chat
+          }),
+        )
+      } catch (error) {
+        console.error("Generation failed:", error)
+
+        // Add error message
+        const errorMessage: Message = {
+          id: (Date.now() + 2).toString(),
+          role: "assistant",
+          content: `Error: ${error instanceof Error ? error.message : "Generation failed. Please try again."}`,
+          timestamp: new Date(),
+          model: selectedModel,
+        }
+
+        setChats((prev) =>
+          prev.map((chat) =>
+            chat.id === activeChat ? { ...chat, messages: [...chat.messages, errorMessage] } : chat,
+          ),
+        )
+      } finally {
+        setIsLoading(false)
       }
-
-      setChats((prev) =>
-        prev.map((chat) => (chat.id === activeChat ? { ...chat, messages: [...chat.messages, aiMessage] } : chat)),
-      )
-
-      setIsLoading(false)
     },
     [activeChat, selectedModel],
   )

@@ -12,6 +12,8 @@ export interface Message {
   image?: string
   timestamp: Date
   model?: string
+  requestId?: string
+  status?: string
 }
 
 interface MessageListProps {

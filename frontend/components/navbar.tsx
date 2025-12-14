@@ -26,14 +26,17 @@ export function Navbar() {
             <Link href="/" className="px-4 py-2 font-medium hover:bg-muted transition-colors">
               Explore
             </Link>
+            <Link href="/models" className="px-4 py-2 font-medium hover:bg-muted transition-colors">
+              Models
+            </Link>
             <Link href="/playground" className="px-4 py-2 font-medium hover:bg-muted transition-colors">
               Playground
             </Link>
-            <Link href="#" className="px-4 py-2 font-medium hover:bg-muted transition-colors">
-              Documentation
+            <Link href="/health" className="px-4 py-2 font-medium hover:bg-muted transition-colors">
+              Health
             </Link>
             <Link href="#" className="px-4 py-2 font-medium hover:bg-muted transition-colors">
-              Pricing
+              Documentation
             </Link>
           </div>
 
@@ -62,6 +65,9 @@ export function Navbar() {
             <Link href="/" className="block px-4 py-3 font-medium neo-border bg-muted" onClick={() => setIsOpen(false)}>
               Explore
             </Link>
+            <Link href="/models" className="block px-4 py-3 font-medium neo-border bg-muted" onClick={() => setIsOpen(false)}>
+              Models
+            </Link>
             <Link
               href="/playground"
               className="block px-4 py-3 font-medium neo-border bg-muted"
@@ -69,11 +75,11 @@ export function Navbar() {
             >
               Playground
             </Link>
-            <Link href="#" className="block px-4 py-3 font-medium neo-border bg-muted">
-              Documentation
+            <Link href="/health" className="block px-4 py-3 font-medium neo-border bg-muted" onClick={() => setIsOpen(false)}>
+              Health
             </Link>
             <Link href="#" className="block px-4 py-3 font-medium neo-border bg-muted">
-              Pricing
+              Documentation
             </Link>
             <div className="pt-4 flex flex-col gap-2">
               <Button variant="outline" className="w-full neo-border font-bold bg-transparent">
