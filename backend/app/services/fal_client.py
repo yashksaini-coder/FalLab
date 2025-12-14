@@ -1,75 +1,369 @@
-from typing import Dict, Any, List, Optional
-from tenacity import retry, stop_after_attempt, wait_exponential
+import aiohttp
 import logging
 import asyncio
-from fal_client import SyncClient, AsyncClient
-from app.core.config import get_settings
-from app.models.schema import ModelCategory
+from typing import Optional, Dict, Any, List
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
-settings = get_settings()
+
 
 class FalAIClient:
     """
-    Fal.ai API client with retry logic and error handling
-    Uses the official fal-client library for better integration
+    Professional Fal.ai client for interacting with:
+    - Fal.ai Platform APIs (https://api.fal.ai/v1) - Model discovery
+    - Queue API (https://queue.fal.run) - Async generation
+    - Sync API (https://fal.run) - Blocking generation
     """
 
-    def __init__(self):
-        self.api_key = settings.FAL_API_KEY
-        self.timeout = settings.FAL_API_TIMEOUT
-        
-        # Initialize Fal.ai clients
-        # Use SyncClient for synchronous operations (wrapped in async)
-        self.sync_client = SyncClient(
-            key=self.api_key,
-            default_timeout=self.timeout
-        )
-        
-        # Use AsyncClient for async operations
-        self.async_client = AsyncClient(
-            key=self.api_key,
-            default_timeout=self.timeout
-        )
-        
-        # Cache for model metadata
-        self._model_cache: Optional[List[Dict[str, Any]]] = None
+    PLATFORM_API_URL = "https://api.fal.ai/v1"
+    QUEUE_API_URL = "https://queue.fal.run"
+    SYNC_API_URL = "https://fal.run"
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=2, max=10)
-    )
+    def __init__(self, api_key: str):
+        """
+        Initialize Fal.ai client
+
+        Args:
+            api_key: Fal.ai API key for authentication
+        """
+        self.api_key = api_key
+        self.headers = {
+            "Authorization": f"Key {api_key}",
+            "Content-Type": "application/json"
+        }
+
+    async def _get_models_list(self) -> List[Dict[str, Any]]:
+        """
+        Fetch complete list of available models from Fal.ai Platform API
+        Handles pagination automatically
+
+        API Endpoint: GET https://api.fal.ai/v1/models
+
+        Expected Response Structure:
+        {
+            "models": [
+                {
+                    "endpoint_id": "fal-ai/flux/dev",
+                    "metadata": {
+                        "display_name": "FLUX.1 [dev]",
+                        "category": "text-to-image",
+                        "description": "...",
+                        "status": "active",
+                        "tags": ["fast", "high-quality"],
+                        "thumbnail_url": "...",
+                        "model_url": "https://fal.run/fal-ai/flux/dev",
+                        ...
+                    }
+                },
+                ...
+            ],
+            "total": 150,
+            "next_cursor": "..." (optional)
+        }
+
+        Returns:
+            List of model dictionaries with endpoint_id and metadata
+
+        Raises:
+            Exception: If API request fails
+        """
+        try:
+            models = []
+            cursor = None
+            total_fetched = 0
+
+            async with aiohttp.ClientSession() as session:
+                while True:
+                    url = f"{self.PLATFORM_API_URL}/models"
+                    params = {"cursor": cursor} if cursor else {}
+
+                    logger.debug(f"Fetching models from {url}" + (f" with cursor={cursor}" if cursor else ""))
+
+                    async with session.get(
+                        url,
+                        headers=self.headers,
+                        params=params,
+                        timeout=aiohttp.ClientTimeout(total=30)
+                    ) as response:
+                        if response.status != 200:
+                            error_text = await response.text()
+                            logger.error(f"Fal.ai API error {response.status}: {error_text}")
+                            raise Exception(f"Failed to fetch models: HTTP {response.status}")
+
+                        data = await response.json()
+
+                        # Extract models from response
+                        batch = data.get('models', [])
+                        models.extend(batch)
+                        total_fetched += len(batch)
+                        logger.info(f"Fetched {len(batch)} models (total so far: {total_fetched})")
+
+                        # Check for pagination
+                        cursor = data.get('next_cursor')
+                        if not cursor:
+                            logger.info(f"Successfully fetched all {len(models)} models from Fal.ai")
+                            break
+
+            return models
+
+        except Exception as e:
+            logger.error(f"Error fetching models from Fal.ai: {str(e)}", exc_info=True)
+            raise
+
+    def search_models(
+        self,
+        query: str,
+        models: List[Dict[str, Any]],
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Perform client-side search on cached models list.
+        Since Fal.ai doesn't provide a dedicated search API, we search locally.
+
+        Searches in:
+        - endpoint_id (highest priority)
+        - metadata.display_name
+        - metadata.description
+        - metadata.tags
+
+        Args:
+            query: Search query string
+            models: List of models to search in
+            limit: Maximum number of results to return
+
+        Returns:
+            List of matching models sorted by relevance
+        """
+        if not query or not query.strip():
+            return models[:limit]
+
+        query_lower = query.lower()
+        results = []
+
+        for model in models:
+            score = 0
+
+            # Priority 1: endpoint_id match (exact or partial)
+            endpoint_id = model.get('endpoint_id', '').lower()
+            if query_lower in endpoint_id:
+                score += 5
+                if endpoint_id == query_lower:  # Exact match bonus
+                    score += 10
+
+            metadata = model.get('metadata', {})
+
+            # Priority 2: display_name match
+            display_name = metadata.get('display_name', '').lower()
+            if query_lower in display_name:
+                score += 3
+                if display_name == query_lower:  # Exact match bonus
+                    score += 5
+
+            # Priority 3: description match
+            description = metadata.get('description', '').lower()
+            if query_lower in description:
+                score += 1
+
+            # Priority 3: tag match
+            tags = metadata.get('tags', [])
+            if any(query_lower in tag.lower() for tag in tags):
+                score += 2
+
+            if score > 0:
+                results.append((model, score))
+
+        # Sort by score (highest first) and extract models
+        results.sort(key=lambda x: x[1], reverse=True)
+        sorted_results = [m for m, _ in results[:limit]]
+
+        logger.debug(f"Search for '{query}' found {len(sorted_results)} results")
+        return sorted_results
+
+    def get_models_by_category(
+        self,
+        models: List[Dict[str, Any]],
+        category: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Filter models by category
+
+        Args:
+            models: List of models to filter
+            category: Category to filter by (e.g., 'text-to-image')
+
+        Returns:
+            List of models in the specified category
+        """
+        category_lower = category.lower()
+        filtered = [
+            m for m in models
+            if m.get('metadata', {}).get('category', '').lower() == category_lower
+        ]
+        logger.debug(f"Found {len(filtered)} models in category '{category}'")
+        return filtered
+
+    def get_model_info(
+        self,
+        endpoint_id: str,
+        models: List[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get detailed information for a specific model
+
+        Args:
+            endpoint_id: Model endpoint ID (e.g., 'fal-ai/flux/dev')
+            models: List of models to search in
+
+        Returns:
+            Model information dict or None if not found
+        """
+        for model in models:
+            if model.get('endpoint_id') == endpoint_id:
+                logger.debug(f"Found model info for: {endpoint_id}")
+                return model
+        logger.warning(f"Model not found: {endpoint_id}")
+        return None
+
+    def get_active_models(self, models: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Filter to only active models
+
+        Args:
+            models: List of models to filter
+
+        Returns:
+            List of active models only
+        """
+        active = [
+            m for m in models
+            if m.get('metadata', {}).get('status') == 'active'
+        ]
+        logger.debug(f"Filtered {len(active)} active models from {len(models)} total")
+        return active
+
+    def get_categories(self, models: List[Dict[str, Any]]) -> List[str]:
+        """
+        Get list of unique categories from models
+
+        Args:
+            models: List of models
+
+        Returns:
+            Sorted list of unique category names
+        """
+        categories = set()
+        for model in models:
+            category = model.get('metadata', {}).get('category')
+            if category:
+                categories.add(category)
+        result = sorted(list(categories))
+        logger.debug(f"Found {len(result)} unique categories")
+        return result
+
     async def submit_request(
         self,
         model_id: str,
         input_data: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Submit generation request to Fal.ai using queue API
+        Submit a generation request to Fal.ai Queue API (async)
+
+        API Endpoint: POST https://queue.fal.run/<model_id>
+
+        Request format:
+        {
+            "prompt": "A serene mountain landscape",
+            "width": 1024,
+            "height": 1024,
+            ...
+        }
+
+        Response format:
+        {
+            "request_id": "req_abc123...",
+            "status": "queued",
+            "queue_position": 5
+        }
 
         Args:
-            model_id: Fal.ai model identifier
+            model_id: Model endpoint ID
             input_data: Input parameters for the model
 
         Returns:
-            Response containing request_id and status URL
+            Response containing request_id and status
+
+        Raises:
+            Exception: If request submission fails
         """
         try:
-            logger.info(f"Submitting request to Fal.ai model: {model_id}")
-            
-            # Use async client for async operations
-            # subscribe(application, arguments, ...)
-            result = await self.async_client.subscribe(
-                model_id,
-                input_data
-            )
-            
-            logger.info(f"Request submitted successfully")
-            return result
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.QUEUE_API_URL}/{model_id}"
+
+                logger.info(f"Submitting async request to {model_id}")
+
+                async with session.post(
+                    url,
+                    json=input_data,
+                    headers=self.headers,
+                    timeout=aiohttp.ClientTimeout(total=30)
+                ) as response:
+                    if response.status not in (200, 201):
+                        error_text = await response.text()
+                        logger.error(f"Queue API error {response.status}: {error_text}")
+                        raise Exception(f"Failed to submit request: HTTP {response.status}")
+
+                    result = await response.json()
+                    request_id = result.get('request_id')
+                    logger.info(f"Request submitted for {model_id}: {request_id}")
+                    return result
 
         except Exception as e:
-            logger.error(f"Failed to submit request to Fal.ai: {e}", exc_info=True)
-            raise Exception(f"Fal.ai API error: {str(e)}")
+            logger.error(f"Error submitting request to {model_id}: {str(e)}", exc_info=True)
+            raise
+
+    async def get_request_status(self, request_id: str) -> Dict[str, Any]:
+        """
+        Get status of a queued generation request
+
+        API Endpoint: GET https://queue.fal.run/requests/<request_id>
+
+        Response format:
+        {
+            "request_id": "req_abc123...",
+            "status": "processing" | "completed" | "failed",
+            "queue_position": 2,
+            "result": {...},  # Only if completed
+            "error": "..."    # Only if failed
+        }
+
+        Args:
+            request_id: Request ID from submit_request
+
+        Returns:
+            Status information including current status and result
+
+        Raises:
+            Exception: If status check fails
+        """
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.QUEUE_API_URL}/requests/{request_id}"
+
+                async with session.get(
+                    url,
+                    headers=self.headers,
+                    timeout=aiohttp.ClientTimeout(total=30)
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"Status API error {response.status}: {error_text}")
+                        raise Exception(f"Failed to get status: HTTP {response.status}")
+
+                    return await response.json()
+
+        except Exception as e:
+            logger.error(f"Error getting status for request {request_id}: {str(e)}", exc_info=True)
+            raise
 
     async def generate_sync(
         self,
@@ -77,116 +371,111 @@ class FalAIClient:
         input_data: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
-        Submit and wait for completion (synchronous generation)
-        Uses fal-client's run method for async execution
+        Perform synchronous (blocking) generation.
+        Waits for the generation to complete before returning.
+
+        API Endpoint: POST https://fal.run/<model_id>
+
+        This is a simpler endpoint that blocks until completion.
+        Use for smaller models or when you need the result immediately.
 
         Args:
-            model_id: Fal.ai model identifier
-            input_data: Input parameters
+            model_id: Model endpoint ID
+            input_data: Input parameters for the model
 
         Returns:
-            Final generation result
+            Generation result
+
+        Raises:
+            Exception: If generation fails or times out
         """
         try:
-            logger.info(f"Running synchronous generation for model: {model_id}")
-            
-            # Use async client's run method
-            # run(application, arguments, ...)
-            result = await self.async_client.run(
-                model_id,
-                input_data,
-                timeout=self.timeout
-            )
-            
-            logger.info(f"Generation completed successfully for model: {model_id}")
-            return result
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.SYNC_API_URL}/{model_id}"
 
+                logger.info(f"Submitting sync request to {model_id}")
+
+                async with session.post(
+                    url,
+                    json=input_data,
+                    headers=self.headers,
+                    timeout=aiohttp.ClientTimeout(total=300)  # 5 minute timeout
+                ) as response:
+                    if response.status not in (200, 201):
+                        error_text = await response.text()
+                        logger.error(f"Sync API error {response.status}: {error_text}")
+                        raise Exception(f"Generation failed: HTTP {response.status}")
+
+                    result = await response.json()
+                    logger.info(f"Sync generation completed for {model_id}")
+                    return result
+
+        except asyncio.TimeoutError:
+            logger.error(f"Sync generation timeout for {model_id}")
+            raise Exception("Generation timeout - request took too long (5 minutes)")
         except Exception as e:
-            logger.error(f"Generation failed: {e}", exc_info=True)
-            raise Exception(f"Generation failed: {str(e)}")
+            logger.error(f"Error during sync generation with {model_id}: {str(e)}", exc_info=True)
+            raise
 
-    def _get_all_models(self) -> List[Dict[str, Any]]:
-        """
-        Get all available models from Fal.ai
-        Uses a curated list of popular models as fallback
-        """
-        # Popular Fal.ai models - can be extended
-        popular_models = [
-            {
-                "model_id": "fal-ai/flux/dev",
-                "id": "fal-ai/flux/dev",  # Keep both for compatibility
-                "name": "FLUX.1 [dev]",
-                "category": ModelCategory.TEXT_TO_IMAGE,
-                "description": "High-quality text-to-image generation model",
-            },
-            {
-                "model_id": "fal-ai/flux/schnell",
-                "id": "fal-ai/flux/schnell",
-                "name": "FLUX.1 [schnell]",
-                "category": ModelCategory.TEXT_TO_IMAGE,
-                "description": "Fast text-to-image generation",
-            },
-            {
-                "model_id": "fal-ai/fast-sdxl",
-                "id": "fal-ai/fast-sdxl",
-                "name": "Fast SDXL",
-                "category": ModelCategory.TEXT_TO_IMAGE,
-                "description": "Optimized SDXL for speed",
-            },
-            {
-                "model_id": "fal-ai/stable-cascade",
-                "id": "fal-ai/stable-cascade",
-                "name": "Stable Cascade",
-                "category": ModelCategory.TEXT_TO_IMAGE,
-                "description": "High-fidelity image generation",
-            },
-        ]
-        
-        return popular_models
-
-    def search_models(
+    async def poll_request(
         self,
-        query: Optional[str] = None,
-        category: Optional[ModelCategory] = None
-    ) -> List[Dict[str, Any]]:
+        request_id: str,
+        max_attempts: int = 120,
+        poll_interval: int = 1
+    ) -> Dict[str, Any]:
         """
-        Search models in catalog
+        Poll a request until completion.
+
+        Repeatedly checks request status until:
+        - status == "completed" → Returns result
+        - status == "failed" → Raises exception
+        - Timeout exceeded → Raises exception
 
         Args:
-            query: Search query string
-            category: Filter by category
+            request_id: Request ID to poll
+            max_attempts: Maximum number of poll attempts
+            poll_interval: Seconds between polls (default: 1 second)
 
         Returns:
-            List of matching models
+            Final result when completed
+
+        Raises:
+            Exception: If request fails or times out
         """
-        all_models = self._get_all_models()
-        results = []
+        attempts = 0
 
-        for model in all_models:
-            # Category filter
-            if category and model.get("category") != category:
-                continue
+        while attempts < max_attempts:
+            try:
+                status_response = await self.get_request_status(request_id)
+                current_status = status_response.get('status')
 
-            # Query filter
-            if query:
-                query_lower = query.lower()
-                model_id = model.get("id") or model.get("model_id", "")
-                searchable = f"{model_id} {model.get('name', '')} {model.get('description', '')}".lower()
-                if query_lower not in searchable:
-                    continue
+                logger.debug(
+                    f"Poll {request_id}: status={current_status} "
+                    f"(attempt {attempts + 1}/{max_attempts})"
+                )
 
-            results.append(model)
+                if current_status == 'completed':
+                    logger.info(f"Request {request_id} completed successfully")
+                    return status_response
 
-        return results
+                elif current_status == 'failed':
+                    error_msg = status_response.get('error', 'Unknown error')
+                    logger.error(f"Request {request_id} failed: {error_msg}")
+                    raise Exception(f"Generation failed: {error_msg}")
 
-    def get_model_info(self, model_id: str) -> Optional[Dict[str, Any]]:
-        """Get detailed model information"""
-        all_models = self._get_all_models()
-        for model in all_models:
-            if model.get("id") == model_id or model.get("model_id") == model_id:
-                return model
-        return None
+                # Still processing, wait before next poll
+                attempts += 1
+                if attempts < max_attempts:
+                    await asyncio.sleep(poll_interval)
 
-    def list_categories(self) -> List[str]:
-        """List available model categories"""
-        return [cat.value for cat in ModelCategory]
+            except Exception as e:
+                if "Generation failed" in str(e):
+                    raise  # Re-raise generation failures
+                logger.error(f"Error polling request {request_id}: {str(e)}")
+                raise
+
+        logger.error(f"Request {request_id} timeout after {max_attempts * poll_interval} seconds")
+        raise Exception(
+            f"Request timeout - generation did not complete within "
+            f"{max_attempts * poll_interval} seconds"
+        )
