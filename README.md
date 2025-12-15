@@ -352,28 +352,109 @@ GET /health
 
 ### Environment Variables
 
-**Backend (.env)**
+**Root `.env` (Recommended for Docker/Cloud):**
 ```env
-# Fal.ai Configuration
-FAL_KEY=your_api_key_here
-
-# API Configuration
-API_TITLE=FalLab API
-DEBUG=true
-LOG_LEVEL=info
-
-# Redis Configuration
-REDIS_URL=redis://localhost:6379
-
-# CORS Configuration
-CORS_ORIGINS=["http://localhost:3000"]
-```
-
-**Frontend (.env.local)**
-```env
-# API Base URL (optional, defaults to localhost:8000)
+FAL_API_KEY=your_fal_api_key
+DEBUG=True
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_DB=0
+REDIS_PASSWORD=
+FAL_API_BASE_URL=https://fal.run
+FAL_API_TIMEOUT=300
+CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+API_V1_PREFIX=/api/v1
 NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+API_URL=http://localhost:8000/api/v1
+NODE_ENV=production
 ```
+
+**Frontend (Vercel):**
+- Set `NEXT_PUBLIC_API_URL` in the Vercel dashboard to your backend’s public URL.
+
+**Backend (DigitalOcean):**
+- Set all backend-related variables in the App Platform dashboard or pass them via `.env` on a Droplet.
+
+---
+
+## 🚀 Docker & Cloud Deployment
+
+### 1. Unified Environment Configuration
+
+- Place a single `.env` file at the project root (see below for example). Docker Compose and most cloud platforms will pick this up automatically.
+- Example `.env`:
+  ```env
+  # Backend
+  FAL_API_KEY=your_fal_api_key
+  DEBUG=True
+  REDIS_HOST=redis
+  REDIS_PORT=6379
+  REDIS_DB=0
+  REDIS_PASSWORD=
+  FAL_API_BASE_URL=https://fal.run
+  FAL_API_TIMEOUT=300
+  CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+  API_V1_PREFIX=/api/v1
+  # Frontend
+  NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+  API_URL=http://localhost:8000/api/v1
+  NODE_ENV=production
+  ```
+
+### 2. Local Docker Compose (All-in-One)
+
+```bash
+# From the project root
+cd backend
+# Build and start all services (backend, worker, redis, frontend)
+docker-compose up --build
+```
+- Access the frontend at [http://localhost:3000](http://localhost:3000)
+- Access the backend API at [http://localhost:8000](http://localhost:8000)
+
+### 3. Deploy Backend to DigitalOcean (App Platform or Droplet)
+
+#### **A. DigitalOcean App Platform (Recommended)**
+1. Push your repo to GitHub.
+2. In DigitalOcean, create a new App and connect your repo.
+3. Add two services:
+   - **Backend API**: Use `/backend` as context, Dockerfile as `backend/Dockerfile`.
+   - **Worker**: Use `/backend` as context, Dockerfile as `backend/Dockerfile.worker`.
+4. Add a database component for Redis or use the built-in Redis service.
+5. Set environment variables in the App Platform dashboard (copy from your `.env`).
+6. Expose port 8000 for the backend service.
+7. Deploy!
+
+#### **B. DigitalOcean Droplet (VM)**
+1. SSH into your Droplet.
+2. Clone your repo and copy your `.env` to the root.
+3. Run:
+   ```bash
+   cd backend
+   docker-compose up -d --build
+   ```
+4. Set up a reverse proxy (e.g., Nginx) for HTTPS and custom domains if needed.
+
+### 4. Deploy Frontend to Vercel
+
+1. Push your frontend code to GitHub (in the `frontend/` directory).
+2. Go to [Vercel](https://vercel.com/) and import your repo.
+3. Set the project root to `frontend/`.
+4. In Vercel dashboard, set the environment variable:
+   - `NEXT_PUBLIC_API_URL` = `https://<your-backend-domain>/api/v1`
+5. Deploy!
+
+**Note:**
+- For local development, `NEXT_PUBLIC_API_URL` can be `http://localhost:8000/api/v1`.
+- For production, set it to your DigitalOcean backend’s public URL.
+
+---
+
+## 🛰️ Production Checklist
+- [ ] Set all secrets and API keys in your cloud provider’s dashboard.
+- [ ] Use HTTPS for all public endpoints (DigitalOcean App Platform and Vercel handle this automatically).
+- [ ] Monitor logs and health endpoints (`/api/v1/health`).
+- [ ] Scale worker and backend services as needed for load.
 
 ---
 

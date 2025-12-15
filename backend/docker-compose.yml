@@ -1,3 +1,4 @@
+version: '3.8'
 services:
   fallab-backend:
     build:
@@ -11,9 +12,51 @@ services:
       - REDIS_PORT=6379
       - REDIS_DB=0
       - REDIS_PASSWORD=
+      - CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+      - API_V1_PREFIX=/api/v1
+      - FAL_API_KEY=${FAL_API_KEY}
+      - FAL_API_BASE_URL=${FAL_API_BASE_URL}
+      - FAL_API_TIMEOUT=300
     depends_on:
       redis:
         condition: service_healthy
+    networks:
+      - fallab-net
+    restart: unless-stopped
+
+  fallab-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: fallab/worker:latest
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_PASSWORD=
+      - FAL_API_KEY=${FAL_API_KEY}
+      - FAL_API_BASE_URL=${FAL_API_BASE_URL}
+      - FAL_API_TIMEOUT=300
+    depends_on:
+      - redis
+    networks:
+      - fallab-net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    image: fallab/frontend:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - API_URL=http://fallab-backend:8000/api/v1
+    depends_on:
+      - fallab-backend
+    networks:
+      - fallab-net
     restart: unless-stopped
 
   redis:
@@ -26,8 +69,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - fallab-net
     restart: unless-stopped
 
 networks:
-  default:
+  fallab-net:
     name: fallab-net
