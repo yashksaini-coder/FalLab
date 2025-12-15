@@ -78,58 +78,6 @@ FalLab is a modern, feature-rich web application that provides an intuitive inte
 
 ---
 
-## 📁 Project Structure
-
-```
-FalLab/
-├── 📂 frontend/                    # Next.js React frontend
-│   ├── 📂 app/                     # App Router pages and layouts
-│   │   ├── 📂 playground/          # Image generation playground
-│   │   ├── 📂 models/              # Models browser page
-│   │   └── 📂 health/              # API health check page
-│   ├── 📂 components/              # Reusable React components
-│   │   ├── 📂 playground/          # Playground-specific components
-│   │   └── 📂 ui/                  # Shadcn/ui components
-│   ├── 📂 lib/                     # Utilities and API client
-│   │   └── api.ts                  # TypeScript API client
-│   ├── 📂 styles/                  # Global styles
-│   └── 📄 package.json             # Frontend dependencies
-│
-├── 📂 backend/                     # FastAPI Python backend
-│   ├── 📂 app/
-│   │   ├── 📂 api/
-│   │   │   └── 📂 routes/          # API endpoints
-│   │   │       ├── generate.py     # Image generation routes
-│   │   │       ├── models.py       # Models listing routes
-│   │   │       └── health.py       # Health check endpoint
-│   │   ├── 📂 core/
-│   │   │   ├── config.py           # Configuration management
-│   │   │   └── middleware.py       # CORS & error handling
-│   │   ├── 📂 models/
-│   │   │   └── schema.py           # Pydantic models/schemas
-│   │   ├── 📂 services/
-│   │   │   ├── fal_client.py       # Fal.ai SDK wrapper
-│   │   │   ├── queue_service.py    # Queue management
-│   │   │   └── redis.py            # Redis client
-│   │   ├── 📂 workers/
-│   │   │   ├── celery_app.py       # Celery app configuration
-│   │   │   ├── manager.py          # Worker task manager
-│   │   │   └── tasks.py            # Background tasks
-│   │   └── main.py                 # FastAPI app initialization
-│   ├── 📂 tests/                   # Unit and integration tests
-│   ├── requirements.txt            # Python dependencies
-│   ├── run.py                      # Development server entry point
-│   ├── worker.sh                   # Celery worker startup script
-│   ├── Dockerfile                  # Container image definition
-│   └── docker-compose.yml          # Multi-container orchestration
-│
-├── 📄 README.md                    # This file
-├── 📄 CONTRIBUTING.md              # Contribution guidelines
-└── 📄 LICENSE                      # MIT License
-```
-
----
-
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -223,108 +171,6 @@ npm run dev
 
 ---
 
-## 📖 API Documentation
-
-### Base URL
-```
-http://localhost:8000/api/v1
-```
-
-### Key Endpoints
-
-#### Get Available Models
-```http
-GET /models?limit=50&offset=0
-```
-
-**Response:**
-```json
-{
-  "models": [
-    {
-      "endpoint_id": "fal-ai/flux/dev",
-      "metadata": {
-        "display_name": "Flux Dev",
-        "category": "text-to-image",
-        "description": "Fast and accurate text-to-image generation",
-        "thumbnail_url": "..."
-      }
-    }
-  ]
-}
-```
-
-#### Get Model Categories
-```http
-GET /models/categories
-```
-
-**Response:**
-```json
-{
-  "categories": ["text-to-image", "image-to-image", "inpainting", "upscaling"]
-}
-```
-
-#### Submit Generation Request
-```http
-POST /generate
-Content-Type: application/json
-
-{
-  "model_id": "fal-ai/flux/dev",
-  "prompt": "A serene mountain landscape at sunset",
-  "parameters": {}
-}
-```
-
-**Response:**
-```json
-{
-  "request_id": "req_12345",
-  "status": "queued",
-  "created_at": "2025-12-15T10:30:00Z"
-}
-```
-
-#### Check Generation Status
-```http
-GET /status/{request_id}
-```
-
-**Response:**
-```json
-{
-  "request_id": "req_12345",
-  "status": "completed",
-  "result": {
-    "images": [
-      {
-        "url": "https://...",
-        "size": "1024x1024"
-      }
-    ]
-  }
-}
-```
-
-#### Health Check
-```http
-GET /health
-```
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "backend": "connected",
-  "redis": "connected",
-  "fal_api": "configured"
-}
-```
-
----
-
 ## 🎮 Usage Guide
 
 ### 1. Browse Models
@@ -350,33 +196,6 @@ GET /health
 
 ## 🔧 Configuration
 
-### Environment Variables
-
-**Root `.env` (Recommended for Docker/Cloud):**
-```env
-FAL_API_KEY=your_fal_api_key
-DEBUG=True
-REDIS_HOST=redis
-REDIS_PORT=6379
-REDIS_DB=0
-REDIS_PASSWORD=
-FAL_API_BASE_URL=https://fal.run
-FAL_API_TIMEOUT=300
-CORS_ORIGINS=http://localhost:3000,http://frontend:3000
-API_V1_PREFIX=/api/v1
-NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
-API_URL=http://localhost:8000/api/v1
-NODE_ENV=production
-```
-
-**Frontend (Vercel):**
-- Set `NEXT_PUBLIC_API_URL` in the Vercel dashboard to your backend’s public URL.
-
-**Backend (DigitalOcean):**
-- Set all backend-related variables in the App Platform dashboard or pass them via `.env` on a Droplet.
-
----
-
 ## 🚀 Docker & Cloud Deployment
 
 ### 1. Unified Environment Configuration
@@ -395,6 +214,7 @@ NODE_ENV=production
   FAL_API_TIMEOUT=300
   CORS_ORIGINS=http://localhost:3000,http://frontend:3000
   API_V1_PREFIX=/api/v1
+
   # Frontend
   NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
   API_URL=http://localhost:8000/api/v1
@@ -412,30 +232,7 @@ docker-compose up --build
 - Access the frontend at [http://localhost:3000](http://localhost:3000)
 - Access the backend API at [http://localhost:8000](http://localhost:8000)
 
-### 3. Deploy Backend to DigitalOcean (App Platform or Droplet)
-
-#### **A. DigitalOcean App Platform (Recommended)**
-1. Push your repo to GitHub.
-2. In DigitalOcean, create a new App and connect your repo.
-3. Add two services:
-   - **Backend API**: Use `/backend` as context, Dockerfile as `backend/Dockerfile`.
-   - **Worker**: Use `/backend` as context, Dockerfile as `backend/Dockerfile.worker`.
-4. Add a database component for Redis or use the built-in Redis service.
-5. Set environment variables in the App Platform dashboard (copy from your `.env`).
-6. Expose port 8000 for the backend service.
-7. Deploy!
-
-#### **B. DigitalOcean Droplet (VM)**
-1. SSH into your Droplet.
-2. Clone your repo and copy your `.env` to the root.
-3. Run:
-   ```bash
-   cd backend
-   docker-compose up -d --build
-   ```
-4. Set up a reverse proxy (e.g., Nginx) for HTTPS and custom domains if needed.
-
-### 4. Deploy Frontend to Vercel
+### 3. Deploy Frontend to Vercel
 
 1. Push your frontend code to GitHub (in the `frontend/` directory).
 2. Go to [Vercel](https://vercel.com/) and import your repo.

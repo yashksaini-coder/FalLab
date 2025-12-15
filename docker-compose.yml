@@ -2,21 +2,20 @@ version: '3.8'
 services:
   fallab-backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     image: fallab/backend:latest
     ports:
       - "8000:8000"
+    env_file:
+      - ./backend/.env.local
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
       - REDIS_PASSWORD=
-      - CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+      - CORS_ORIGINS=["http://localhost:3000","https://fal-lab.vercel.app/"]
       - API_V1_PREFIX=/api/v1
-      - FAL_API_KEY=${FAL_API_KEY}
-      - FAL_API_BASE_URL=${FAL_API_BASE_URL}
-      - FAL_API_TIMEOUT=300
     depends_on:
       redis:
         condition: service_healthy
@@ -26,17 +25,16 @@ services:
 
   fallab-worker:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile.worker
     image: fallab/worker:latest
+    env_file:
+      - ./backend/.env.local
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - REDIS_DB=0
       - REDIS_PASSWORD=
-      - FAL_API_KEY=${FAL_API_KEY}
-      - FAL_API_BASE_URL=${FAL_API_BASE_URL}
-      - FAL_API_TIMEOUT=300
     depends_on:
       - redis
     networks:
@@ -45,7 +43,7 @@ services:
 
   frontend:
     build:
-      context: ../frontend
+      context: ./frontend
       dockerfile: Dockerfile
     image: fallab/frontend:latest
     ports:
