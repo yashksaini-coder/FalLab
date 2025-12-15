@@ -1,5 +1,6 @@
 import uvicorn
 from app.core.config import get_settings
+from app.main import app  # <-- Add this line to export app
 
 settings = get_settings()
 
