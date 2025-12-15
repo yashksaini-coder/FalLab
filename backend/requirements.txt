@@ -49,5 +49,8 @@ uvloop==0.22.1
 vine==5.1.0
 watchfiles==1.1.1
 wcwidth==0.2.14
-
+locust==2.42.6
 websockets==15.0.1
+gevent>=22.10.2
+gevent-websocket>=0.10.1
+psutil>=5.9.0

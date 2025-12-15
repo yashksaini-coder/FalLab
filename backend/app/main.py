@@ -7,13 +7,20 @@ import time
 import logging
 import asyncio
 
+# --- Core imports ---
 from app.core.config import get_settings
-from app.core.middleware import RateLimitMiddleware
 from app.api.routes import models, generate, health
 from app.services.redis import RedisService
 from app.workers.manager import start_worker_manager, stop_worker_manager
 from app.models.schema import ErrorResponse
 
+# --- Custom middleware imports ---
+from app.middleware.rate_limiter import RateLimitMiddleware
+from app.middleware.logging import RequestLoggingMiddleware
+from app.middleware.cache import CacheMiddleware
+
+# --- Connection pool import ---
+from app.core.connection_pool import get_http_client, close_http_client
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -24,6 +31,7 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 # Lifespan context manager for startup/shutdown
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -32,6 +40,11 @@ async def lifespan(app: FastAPI):
     await redis_service.connect()
     app.state.redis = redis_service
     logger.info("Redis connected successfully")
+
+    # Initialize global HTTP connection pool
+    http_client = get_http_client()
+    app.state.http_client = http_client
+    logger.info("HTTP connection pool initialized")
 
     # Start worker manager in background
     asyncio.create_task(start_worker_manager())
@@ -43,9 +56,11 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down application...")
     await stop_worker_manager()
     await redis_service.disconnect()
+    await close_http_client()
     logger.info("Application shutdown complete")
 
 # Create FastAPI app
+
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
@@ -56,7 +71,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS Middleware
+# --- Middleware registration order ---
+# 1. Logging (first, logs all requests)
+app.add_middleware(RequestLoggingMiddleware)
+# 2. CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -64,17 +82,38 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Rate Limiting Middleware (after CORS, before routes)
+# 3. Cache (for GET endpoints)
+app.add_middleware(CacheMiddleware, cacheable_paths=[
+    f"{settings.API_V1_PREFIX}/models",
+    f"{settings.API_V1_PREFIX}/models/categories",
+    f"{settings.API_V1_PREFIX}/models/search",
+    f"{settings.API_V1_PREFIX}/models/",
+    f"{settings.API_V1_PREFIX}/health",
+])
+# 4. Rate Limiting (after CORS, after cache)
 app.add_middleware(RateLimitMiddleware)
 
-# Request timing middleware
+
+
+# Request timing middleware (robust to error responses)
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start_time = time.time()
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception as exc:
+        process_time = time.time() - start_time
+        # If exception, try to add header to a new response
+        resp = JSONResponse(
+            status_code=500,
+            content={"error": "InternalServerError", "message": str(exc)}
+        )
+        resp.headers["X-Process-Time"] = str(process_time)
+        return resp
     process_time = time.time() - start_time
-    response.headers["X-Process-Time"] = str(process_time)
+    # Only add header if not already started
+    if not response.headers.get("X-Process-Time"):
+        response.headers["X-Process-Time"] = str(process_time)
     return response
 
 # Request validation error handler
@@ -90,7 +129,20 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         ).model_dump()
     )
 
-# HTTP exception handler
+
+# HTTP 429 handler (rate limit exceeded)
+@app.exception_handler(429)
+async def http_429_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=429,
+        content=ErrorResponse(
+            error="RateLimitExceeded",
+            message=exc.detail or "Rate limit exceeded. Please try again later.",
+            details=None
+        ).model_dump()
+    )
+
+# HTTP exception handler (all others)
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     return JSONResponse(
